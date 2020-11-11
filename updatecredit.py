@@ -12,7 +12,7 @@ import logging
 
 
 #configure logging format - adding date
-logging.basicConfig(format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
+logging.basicConfig(filename="/var/log/myteachright/updatecredit.log",format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
 
 #from io import StringIO
 #import sys
@@ -30,8 +30,24 @@ IPAY_STATUS = 'https://manage.ipaygh.com/gateway/json_status_chk'
 
 MYSQL_UPDATE = "update tr_user_info_data set data = data + 3 where fieldid=1 and userid = 18;"
 
+CREDIT_ID = 1
 
 #Create functions
+
+def fix_credit(user_id,credit_id):
+        try:
+                cnx = mysql.connector.connect(user='credituser',database='teachright',password='Welcome100')
+                if cnx.is_connected():
+                        print('Connected to MySQL database')
+                        sql = "insert into tr_user_info_data (userid,fieldid,data,dataformat) select {userid},{fieldid},0,0 from tr_user_info_data WHERE NOT EXISTS(select data from tr_user_info_data where userid={userid}) limit 1;".format(userid=user_id,fieldid=credit_id)
+                        print(sql)
+                        cursor = cnx.cursor()
+                        cursor.execute(sql)
+                        cnx.commit()
+                        cnx.close
+        except:
+                print("Cannot Connect")
+
 
 def update_credit(amount,userid):
 	try:
@@ -52,10 +68,11 @@ def update_credit(amount,userid):
 
 #	return("update tr_user_info_data set data = data + 3 where fieldid=1 and userid = 18;")
 	
-logger.warning('Start listening to queue')
 
 def status_url(base_url,invoice_id,key):
 	return("{}?invoice_id={}&merchant_key={}".format(base_url,invoice_id,key))
+
+logger.warning('Start listening to queue')
 
 
 with ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR) as client:
@@ -83,7 +100,8 @@ with ServiceBusClient.from_connection_string(conn_str=CONNECTION_STR) as client:
              userid = str(message).split('_')[2] 
              print(amount,userid)
              try:
-                  update_credit(credit,userid)
+                 fix_credit(user_id,CREDIT_ID)
+                 update_credit(credit,userid)
              except:
                   print("There was an error")
              else:
